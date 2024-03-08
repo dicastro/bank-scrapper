@@ -6,7 +6,7 @@ import com.diegocastroviadero.bankscrapper.model.SyncType;
 import com.diegocastroviadero.bankscrapper.model.User;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.Account;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankCredential;
-import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankScrapperService;
+import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankScrapperService;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.DateFilter;
 import com.diegocastroviadero.bankscrapper.scrapper.common.service.DriverProvider;
 import com.diegocastroviadero.bankscrapper.scrapper.common.utils.ScrapperUtils;
@@ -33,9 +33,7 @@ import java.util.stream.IntStream;
 
 import static java.time.Duration.ofMinutes;
 import static java.time.Duration.ofSeconds;
-import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
-import static org.openqa.selenium.support.ui.ExpectedConditions.stalenessOf;
-import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOf;
+import static org.openqa.selenium.support.ui.ExpectedConditions.*;
 
 @Slf4j
 @Service
@@ -176,7 +174,7 @@ public class InBankScrapperService implements BankScrapperService {
                     log.debug("Filling position {} of password", i);
 
                     pinContainer
-                            .findElement(By.xpath(String.format("//li/span[text()='%s']", bankCredential.getPassword().charAt(i))))
+                            .findElement(By.xpath(String.format(".//li/span[text()='%s']", bankCredential.getPassword().charAt(i))))
                             .click();
 
                     waitMillis(ONE_SECOND);
@@ -242,6 +240,18 @@ public class InBankScrapperService implements BankScrapperService {
         return wait.until(visibilityOf(sc.findElement(byChain.getLast())));
     }
 
+    private List<WebElement> waitUntilVisibilityOfAllShadowElements(final RemoteWebDriver driver, Duration duration, final List<By> byChain) {
+        WebDriverWait wait = new WebDriverWait(driver, duration);
+
+        SearchContext sc = driver.findElement(By.tagName("body"));
+
+        for (By by : byChain.subList(0, byChain.size() - 1)) {
+            sc = wait.until(presenceOfElement(sc, by)).getShadowRoot();
+        }
+
+        return wait.until(visibilityOfAllElements(sc.findElements(byChain.getLast())));
+    }
+
     private boolean rejectCookies(final RemoteWebDriver driver) {
         WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
 
@@ -275,15 +285,16 @@ public class InBankScrapperService implements BankScrapperService {
     }
 
     private List<Account> getUserAccounts(final RemoteWebDriver driver) {
-        final WebElement productsArea = waitUntilVisibilityOfShadowElement(driver, TEN_SECONDS_DUR, List.of(
+        final List<WebElement> productBoxes = waitUntilVisibilityOfAllShadowElements(driver, TEN_SECONDS_DUR, List.of(
                 By.cssSelector("ing-app-es"),
-                By.xpath("//*[starts-with(name(), 'overall-position-')]"),
+                By.cssSelector("main > [basepath='overall-position']"),
                 By.cssSelector("products-layout"),
-                By.cssSelector("products-area")
+                By.cssSelector("products-area"),
+                By.cssSelector("product-box")
         ));
 
-        return productsArea.getShadowRoot()
-                .findElements(By.xpath("//product-box//a[@class='link-unstyled']//div[@class='description']/p")).stream()
+        return productBoxes.stream()
+                .map(sc -> sc.getShadowRoot().findElement(By.cssSelector("div.description > p")))
                 .map(WebElement::getText)
                 .filter(StringUtils::isNotEmpty)
                 .map(rawAccount -> new Account(rawAccount, accountCleanup))

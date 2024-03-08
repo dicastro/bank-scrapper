@@ -6,7 +6,7 @@ import com.diegocastroviadero.bankscrapper.model.SyncType;
 import com.diegocastroviadero.bankscrapper.model.User;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.Account;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankCredential;
-import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankScrapperService;
+import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankScrapperService;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.DateFilter;
 import com.diegocastroviadero.bankscrapper.scrapper.common.service.DriverProvider;
 import com.diegocastroviadero.bankscrapper.scrapper.common.utils.ScrapperUtils;

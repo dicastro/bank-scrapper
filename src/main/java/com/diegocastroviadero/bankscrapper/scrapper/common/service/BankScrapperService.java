@@ -1,8 +1,9 @@
-package com.diegocastroviadero.bankscrapper.scrapper.common.model;
+package com.diegocastroviadero.bankscrapper.scrapper.common.service;
 
 import com.diegocastroviadero.bankscrapper.model.Bank;
 import com.diegocastroviadero.bankscrapper.model.SyncType;
 import com.diegocastroviadero.bankscrapper.model.User;
+import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankCredential;
 
 public interface BankScrapperService {
     Bank getBank();

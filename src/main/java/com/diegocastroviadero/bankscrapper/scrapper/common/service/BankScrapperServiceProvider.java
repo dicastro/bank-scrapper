@@ -1,7 +1,6 @@
 package com.diegocastroviadero.bankscrapper.scrapper.common.service;
 
 import com.diegocastroviadero.bankscrapper.model.Bank;
-import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankScrapperService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
