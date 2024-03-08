@@ -1,0 +1,5 @@
+bankscrapper:
+  basePath: /wksp
+
+  seleniumHub:
+    url: http://selenium-hub:4444/wd/hub

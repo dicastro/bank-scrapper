@@ -1,0 +1,3 @@
+@echo off
+
+docker run --rm --name chrome-node -p 6901:5900 --network bankscrapper -e VNC_NO_PASSWORD=1 -e SE_EVENT_BUS_HOST=selenium-hub -e SE_EVENT_BUS_PUBLISH_PORT=4442 -e SE_EVENT_BUS_SUBSCRIBE_PORT=4443 -e SCREEN_WIDTH=1280 -e SCREEN_HEIGHT=1024 -e SCREEN_DEPTH=24 -e SCREEN_DPI=96 --shm-size=2g -v %HOMEDRIVE%%HOMEPATH%/.bank-scrapper/scrapping/downloads:/home/seluser/Downloads selenium/node-chrome:122.0.6261.69-chromedriver-122.0.6261.69-grid-4.18.1-20240224

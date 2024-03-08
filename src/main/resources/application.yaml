@@ -1,0 +1,34 @@
+logging:
+  level:
+    root: WARN
+    com.diegocastroviadero.bankscrapper: DEBUG
+
+bankscrapper:
+  basePath: ${HOMEDRIVE}${HOMEPATH}/.bank-scrapper
+
+  seleniumHub:
+    url: http://localhost:4444/wd/hub
+
+  tesseract:
+    commandPath: /usr/bin/tesseract
+    basePath: /tesseract
+    dataPath: ${bankscrapper.tesseract.basePath}/tessdata
+    configPath: ${bankscrapper.tesseract.basePath}/tessconfig/config
+    lang: eng
+    pageSegmentationMode: 10
+    ocrEngineMode: 1
+    dpi: 70
+
+  downloadPath: ${bankscrapper.basePath}/scrapping/downloads
+
+  users:
+    DIE:
+      - KB
+      - ING
+
+  banks:
+    kb:
+      keyboardCache:
+        basePath: ${bankscrapper.basePath}/scrapping/banks/kb/keyboards
+        cache: ${bankscrapper.banks.kb.keyboardCache.basePath}/cache
+        tmp: ${bankscrapper.banks.kb.keyboardCache.basePath}/tmp
