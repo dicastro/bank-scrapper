@@ -6,8 +6,8 @@ import com.diegocastroviadero.bankscrapper.model.SyncType;
 import com.diegocastroviadero.bankscrapper.model.User;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.Account;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankCredential;
-import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankScrapperService;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.DateFilter;
+import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankScrapperService;
 import com.diegocastroviadero.bankscrapper.scrapper.common.service.DriverProvider;
 import com.diegocastroviadero.bankscrapper.scrapper.common.utils.ScrapperUtils;
 import com.diegocastroviadero.bankscrapper.scrapper.in.console.InBankCredential;
@@ -20,10 +20,16 @@ import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.ExpectedCondition;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.FluentWait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Service;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.time.Duration;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -31,9 +37,15 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.time.Duration.ofMinutes;
 import static java.time.Duration.ofSeconds;
-import static org.openqa.selenium.support.ui.ExpectedConditions.*;
+import static org.openqa.selenium.support.ui.ExpectedConditions.elementToBeClickable;
+import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
+import static org.openqa.selenium.support.ui.ExpectedConditions.stalenessOf;
+import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOf;
+import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOfAllElements;
+import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOfElementLocated;
 
 @Slf4j
 @Service
@@ -42,6 +54,14 @@ public class InBankScrapperService implements BankScrapperService {
     private final Integer ONE_SECOND = 1000;
     private final Duration TEN_SECONDS_DUR = ofSeconds(10);
     private final Duration FIVE_MINUTES_DUR = ofMinutes(5);
+
+    private final List<By> PRODUCT_BOX_BY_CHAIN = List.of(
+            By.cssSelector("ing-app-es"),
+            By.cssSelector("main > [basepath='overall-position']"),
+            By.cssSelector("products-layout"),
+            By.cssSelector("products-area"),
+            By.cssSelector("product-box")
+    );
 
     private final ScrappingProperties properties;
 
@@ -82,7 +102,7 @@ public class InBankScrapperService implements BankScrapperService {
                 for (final Account account : accounts) {
                     log.debug("Downloading movements of account: {}", account.getNumber());
 
-                    // TODO: getAccountMovements(driver, account, dateFilter);
+                    getAccountMovements(driver, account, dateFilter);
                 }
             } catch (Exception e) {
                 log.error("Error while scrapping data from {}", getBank().getDescription(), e);
@@ -285,13 +305,7 @@ public class InBankScrapperService implements BankScrapperService {
     }
 
     private List<Account> getUserAccounts(final RemoteWebDriver driver) {
-        final List<WebElement> productBoxes = waitUntilVisibilityOfAllShadowElements(driver, TEN_SECONDS_DUR, List.of(
-                By.cssSelector("ing-app-es"),
-                By.cssSelector("main > [basepath='overall-position']"),
-                By.cssSelector("products-layout"),
-                By.cssSelector("products-area"),
-                By.cssSelector("product-box")
-        ));
+        final List<WebElement> productBoxes = waitUntilVisibilityOfAllShadowElements(driver, TEN_SECONDS_DUR, PRODUCT_BOX_BY_CHAIN);
 
         return productBoxes.stream()
                 .map(sc -> sc.getShadowRoot().findElement(By.cssSelector("div.description > p")))
@@ -305,4 +319,65 @@ public class InBankScrapperService implements BankScrapperService {
     private final Function<String, String> accountCleanup = (rawAccount) -> rawAccount
             .trim()
             .replaceAll("\\*", "");
+
+    private void getAccountMovements(final RemoteWebDriver driver, final Account account, final DateFilter dateFilter) {
+        WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
+
+        getShadowedElements(driver, PRODUCT_BOX_BY_CHAIN).stream()
+                .map(sc -> sc.getShadowRoot().findElement(By.cssSelector("a.unstyled-link")))
+                .filter(productBox -> StringUtils.equals(
+                        account.getRawNumber(),
+                        productBox.findElement(By.cssSelector("div.description > p")).getText()))
+                .findFirst()
+                .ifPresent(we -> {
+                    wait.until(elementToBeClickable(we)).click();
+                });
+
+        wait.until(visibilityOfElementLocated(By.cssSelector("div.transactions-grid-container")));
+
+        final WebElement dateNavigatorBox = wait.until(visibilityOfElementLocated(By.cssSelector("div.date-navigator-box")));
+
+        String dateValue = wait.until(visibilityOf(dateNavigatorBox.findElement(By.cssSelector("span.date-navigator-label")))).getText();
+
+        while (!StringUtils.equals("Febrero 2024", dateValue)) {
+            wait.until(elementToBeClickable(By.cssSelector("a.navigate-back"))).click();
+
+            dateValue = wait.until(visibilityOf(dateNavigatorBox.findElement(By.cssSelector("span.date-navigator-label")))).getText();
+        }
+
+        wait.until(elementToBeClickable(By.cssSelector("a#export-movements-excel-ico'"))).click();
+
+        log.debug("Downloading... waiting for file to be downloaded ...");
+
+        File downloadedFile = properties.getDownloadPath().resolve("Movements.xls").toFile();
+
+        new FluentWait<>(downloadedFile)
+                .withTimeout(ofSeconds(10))
+                .ignoring(Exception.class)
+                .pollingEvery(ofSeconds(2))
+                .until(file -> file.exists() && file.canWrite());
+
+        waitMillis(ONE_SECOND);
+
+        final String renamedFile = String.format("%s-%s.xls",
+                mappings.entrySet().stream()
+                        .filter(e -> account.getNumber().endsWith(e.getKey()))
+                        .findFirst()
+                        .map(Map.Entry::getValue)
+                        .orElse("NOTFOUND"),
+                dateFilter.getTo().format(DateTimeFormatter.ofPattern("yyyyMM")));
+
+        log.debug("Downloaded file! Renaming from Movements.xls to {}", renamedFile);
+
+        try {
+            Files.move(
+                    downloadedFile.toPath(),
+                    properties.getDownloadPath().resolve(renamedFile),
+                    REPLACE_EXISTING);
+        } catch (IOException e) {
+            log.error("Error while renaming downloaded Movements.xls file to {}", renamedFile, e);
+        }
+
+        waitMillis(ONE_SECOND);
+    }
 }
