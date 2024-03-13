@@ -20,7 +20,6 @@ import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.ExpectedCondition;
-import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.FluentWait;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Service;
@@ -30,30 +29,27 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.time.Duration.ofMinutes;
 import static java.time.Duration.ofSeconds;
-import static org.openqa.selenium.support.ui.ExpectedConditions.elementToBeClickable;
-import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
-import static org.openqa.selenium.support.ui.ExpectedConditions.stalenessOf;
-import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOf;
-import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOfAllElements;
-import static org.openqa.selenium.support.ui.ExpectedConditions.visibilityOfElementLocated;
+import static org.openqa.selenium.support.ui.ExpectedConditions.*;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class InBankScrapperService implements BankScrapperService {
+    private final Random RANDOM = new Random();
     private final Integer ONE_SECOND = 1000;
+    private final Integer TEN_SECONDS = 10000;
     private final Duration TEN_SECONDS_DUR = ofSeconds(10);
     private final Duration FIVE_MINUTES_DUR = ofMinutes(5);
+    private final int MAX_LOGIN_RETRIES = 6;
 
     private final List<By> PRODUCT_BOX_BY_CHAIN = List.of(
             By.cssSelector("ing-app-es"),
@@ -128,48 +124,51 @@ public class InBankScrapperService implements BankScrapperService {
         rejectCookies(driver);
 
         // username
-        getShadowedElement(driver, List.of(
+        final WebElement documentNumberInput = getShadowedElement(driver, List.of(
                 By.cssSelector("ing-app-login-sca-es"),
                 By.cssSelector("ing-orange-login-sca-es"),
                 By.cssSelector("ing-uic-login-sca-es-step-credentials"),
                 By.cssSelector("ing-uic-login-sca-es-el-input"),
                 By.name("documentNumberInput")
-        )).sendKeys(bankCredential.getUsername());
+        ));
+
+        focusAndSendHumanKeys(driver, documentNumberInput, bankCredential.getUsername());
 
         // day
-        getShadowedElement(driver, List.of(
+        final WebElement dayInput = getShadowedElement(driver, List.of(
                 By.cssSelector("ing-app-login-sca-es"),
                 By.cssSelector("ing-orange-login-sca-es"),
                 By.cssSelector("ing-uic-login-sca-es-step-credentials"),
                 By.cssSelector("ing-uic-login-sca-es-el-input-date"),
                 By.cssSelector("#input_day")
-        )).sendKeys(String.format("%02d", bankCredential.getBirthDate().getDayOfMonth()));
+        ));
+
+        focusAndSendHumanKeys(driver, dayInput, String.format("%02d", bankCredential.getBirthDate().getDayOfMonth()));
 
         // month
-        getShadowedElement(driver, List.of(
+        final WebElement monthInput = getShadowedElement(driver, List.of(
                 By.cssSelector("ing-app-login-sca-es"),
                 By.cssSelector("ing-orange-login-sca-es"),
                 By.cssSelector("ing-uic-login-sca-es-step-credentials"),
                 By.cssSelector("ing-uic-login-sca-es-el-input-date"),
                 By.cssSelector("#input_month")
-        )).sendKeys(String.format("%02d", bankCredential.getBirthDate().getMonthValue()));
+        ));
+
+        focusAndSendHumanKeys(driver, monthInput, String.format("%02d", bankCredential.getBirthDate().getMonthValue()));
 
         // year
-        getShadowedElement(driver, List.of(
+        final WebElement yearInput = getShadowedElement(driver, List.of(
                 By.cssSelector("ing-app-login-sca-es"),
                 By.cssSelector("ing-orange-login-sca-es"),
                 By.cssSelector("ing-uic-login-sca-es-step-credentials"),
                 By.cssSelector("ing-uic-login-sca-es-el-input-date"),
                 By.cssSelector("#input_year")
-        )).sendKeys(String.format("%d", bankCredential.getBirthDate().getYear()));
+        ));
+
+        focusAndSendHumanKeys(driver, yearInput, String.format("%d", bankCredential.getBirthDate().getYear()));
 
         // continue
-        getShadowedElement(driver, List.of(
-                By.cssSelector("ing-app-login-sca-es"),
-                By.cssSelector("ing-orange-login-sca-es"),
-                By.cssSelector("ing-uic-login-sca-es-step-credentials"),
-                By.cssSelector("paper-button")
-        )).click();
+        clickContinue(driver);
 
         // pin
         final WebElement pinContainer = waitUntilVisibilityOfShadowElement(driver, TEN_SECONDS_DUR, List.of(
@@ -181,6 +180,8 @@ public class InBankScrapperService implements BankScrapperService {
 
         final List<WebElement> passPositions = pinContainer
                 .findElements(By.cssSelector("div.c-pinpad__secret-positions__position"));
+
+        waitMillis(ONE_SECOND);
 
         IntStream.range(0, passPositions.size())
                 .map(i -> {
@@ -284,7 +285,49 @@ public class InBankScrapperService implements BankScrapperService {
             log.debug("Timeout waiting for cookie overlay to appear");
             return false;
         }
+    }
 
+    private void clickContinue(final RemoteWebDriver driver) {
+        int retries = 0;
+        boolean neededTry = true;
+
+        while (neededTry && retries < MAX_LOGIN_RETRIES) {
+            log.debug("Clicking 'continuar' button ({}/{})...", retries + 1, MAX_LOGIN_RETRIES);
+
+            getShadowedElement(driver, List.of(
+                    By.cssSelector("ing-app-login-sca-es"),
+                    By.cssSelector("ing-orange-login-sca-es"),
+                    By.cssSelector("ing-uic-login-sca-es-step-credentials"),
+                    By.cssSelector("paper-button")
+            )).click();
+
+            try {
+                log.debug("Checking if login has been blocked...");
+
+                String messageText = waitUntilVisibilityOfShadowElement(driver, TEN_SECONDS_DUR, List.of(
+                        By.cssSelector("ing-app-login-sca-es"),
+                        By.cssSelector("ing-orange-login-sca-es"),
+                        By.cssSelector("ing-uic-login-sca-es-el-message-box"),
+                        By.cssSelector("div#messageBox")
+                )).getText();
+
+                if (StringUtils.equals("Por razones técnicas no podemos atenderte. Estamos trabajando para solucionarlo lo antes posible. Disculpa las molestias.", messageText)) {
+                    log.warn("Login has been blocked!");
+                    retries++;
+
+                    long waitTime = retries * 10000L;
+                    log.debug("Waiting {} millis before clicking again 'continuar' button ...", waitTime);
+                    waitMillis(waitTime);
+                } else {
+                    log.error("There was an unexpected error after clicking 'continuar': {}", messageText);
+
+                    throw new RuntimeException("There was an unexpected error after clicking 'continuar'");
+                }
+            } catch (TimeoutException ignored) {
+                log.info("Login has been unblocked!");
+                neededTry = false;
+            }
+        }
     }
 
     private void waitMillis(long millis) {
@@ -323,39 +366,39 @@ public class InBankScrapperService implements BankScrapperService {
     private void getAccountMovements(final RemoteWebDriver driver, final Account account, final DateFilter dateFilter) {
         WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
 
+        // FIXME: there is an issue and this code runs before the element is clickable (the wait before this method is not working properly)
+        // easy fix would be waiting 60s (but it could also fail)
         getShadowedElements(driver, PRODUCT_BOX_BY_CHAIN).stream()
-                .map(sc -> sc.getShadowRoot().findElement(By.cssSelector("a.unstyled-link")))
+                .map(sc -> sc.getShadowRoot().findElement(By.cssSelector("div.description")))
                 .filter(productBox -> StringUtils.equals(
                         account.getRawNumber(),
-                        productBox.findElement(By.cssSelector("div.description > p")).getText()))
+                        productBox.findElement(By.cssSelector("p")).getText()))
                 .findFirst()
-                .ifPresent(we -> {
-                    wait.until(elementToBeClickable(we)).click();
-                });
+                .ifPresent(we -> wait.until(elementToBeClickable(we)).click());
 
         wait.until(visibilityOfElementLocated(By.cssSelector("div.transactions-grid-container")));
 
-        final WebElement dateNavigatorBox = wait.until(visibilityOfElementLocated(By.cssSelector("div.date-navigator-box")));
+        String dateValue = wait.until(visibilityOfElementLocated(By.cssSelector("span.date-navigator-label"))).getText();
 
-        String dateValue = wait.until(visibilityOf(dateNavigatorBox.findElement(By.cssSelector("span.date-navigator-label")))).getText();
-
+        // FIXME: month should not be hardcoded, it should be extracted from dateFilter
         while (!StringUtils.equals("Febrero 2024", dateValue)) {
             wait.until(elementToBeClickable(By.cssSelector("a.navigate-back"))).click();
 
-            dateValue = wait.until(visibilityOf(dateNavigatorBox.findElement(By.cssSelector("span.date-navigator-label")))).getText();
+            dateValue = wait.until(visibilityOfElementLocated(By.cssSelector("span.date-navigator-label"))).getText();
         }
 
-        wait.until(elementToBeClickable(By.cssSelector("a#export-movements-excel-ico'"))).click();
+        wait.until(elementToBeClickable(By.cssSelector("a#export-movements-excel-ico"))).click();
 
         log.debug("Downloading... waiting for file to be downloaded ...");
 
-        File downloadedFile = properties.getDownloadPath().resolve("Movements.xls").toFile();
-
-        new FluentWait<>(downloadedFile)
+        File downloadedFile = new FluentWait<>(properties.getDownloadPath().toFile())
                 .withTimeout(ofSeconds(10))
                 .ignoring(Exception.class)
                 .pollingEvery(ofSeconds(2))
-                .until(file -> file.exists() && file.canWrite());
+                .until(downloadPath -> Arrays.stream(Optional.ofNullable(downloadPath.listFiles()).orElse(new File[0]))
+                            .filter(file -> file.getName().matches("[a-zA-Z0-9\\-]{8}.xls") && file.canWrite())
+                            .findFirst()
+                            .orElse(null));
 
         waitMillis(ONE_SECOND);
 
@@ -367,7 +410,7 @@ public class InBankScrapperService implements BankScrapperService {
                         .orElse("NOTFOUND"),
                 dateFilter.getTo().format(DateTimeFormatter.ofPattern("yyyyMM")));
 
-        log.debug("Downloaded file! Renaming from Movements.xls to {}", renamedFile);
+        log.debug("Downloaded file! Renaming from {} to {}", downloadedFile.getName(), renamedFile);
 
         try {
             Files.move(
@@ -379,5 +422,17 @@ public class InBankScrapperService implements BankScrapperService {
         }
 
         waitMillis(ONE_SECOND);
+    }
+
+    private void focusAndSendHumanKeys(final RemoteWebDriver driver, final WebElement element, final String text) {
+        driver.executeScript("arguments[0].focus();", element);
+        waitMillis(ONE_SECOND);
+
+        text.chars()
+                .mapToObj(Character::toString)
+                .forEach(letter -> {
+                    waitMillis((long) (RANDOM.nextGaussian() * 15 + 100));
+                    element.sendKeys(letter);
+                });
     }
 }
