@@ -2,30 +2,33 @@ package com.diegocastroviadero.bankscrapper.scrapper.common.model;
 
 import org.junit.jupiter.api.Test;
 
+import java.sql.Date;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.Year;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class DateFilterTest {
+
     @Test
     void testYearMonthList1() {
         // Given
         final LocalDate startDate = LocalDate.of(2021, 2, 1);
         final LocalDate endDate = LocalDate.of(2021, 2, 28);
 
-        final Map<Year, List<Month>> expectedMonthsGroupedByYear = Map.of(
-                Year.of(2021), List.of(Month.FEBRUARY)
+        final List<YearMonth> expectedYearMonthList = List.of(
+                YearMonth.of(2021, Month.FEBRUARY)
         );
 
         // When
-        final Map<Year, List<Month>> monthsGroupedByYear = new DateFilter(startDate, endDate).getMonthsGroupedByYear();
+        final List<YearMonth> yearMonthList = new DateFilter(startDate, endDate).getYearMonthList();
 
         // Then
-        assertEquals(expectedMonthsGroupedByYear, monthsGroupedByYear);
+        assertEquals(expectedYearMonthList, yearMonthList);
     }
 
     @Test
@@ -34,15 +37,18 @@ class DateFilterTest {
         final LocalDate startDate = LocalDate.of(2021, 2, 1);
         final LocalDate endDate = LocalDate.of(2021, 5, 31);
 
-        final Map<Year, List<Month>> expectedMonthsGroupedByYear = Map.of(
-                Year.of(2021), List.of(Month.FEBRUARY, Month.MARCH, Month.APRIL, Month.MAY)
+        final List<YearMonth> expectedYearMonthList = List.of(
+                YearMonth.of(2021, Month.MAY),
+                YearMonth.of(2021, Month.APRIL),
+                YearMonth.of(2021, Month.MARCH),
+                YearMonth.of(2021, Month.FEBRUARY)
         );
 
         // When
-        final Map<Year, List<Month>> monthsGroupedByYear = new DateFilter(startDate, endDate).getMonthsGroupedByYear();
+        final List<YearMonth> yearMonthList = new DateFilter(startDate, endDate).getYearMonthList();
 
         // Then
-        assertEquals(expectedMonthsGroupedByYear, monthsGroupedByYear);
+        assertEquals(expectedYearMonthList, yearMonthList);
     }
 
     @Test
@@ -51,15 +57,16 @@ class DateFilterTest {
         final LocalDate startDate = LocalDate.of(2021, 2, 1);
         final LocalDate endDate = LocalDate.of(2021, 3, 31);
 
-        final Map<Year, List<Month>> expectedMonthsGroupedByYear = Map.of(
-                Year.of(2021), List.of(Month.FEBRUARY, Month.MARCH)
+        final List<YearMonth> expectedYearMonthList = List.of(
+                YearMonth.of(2021, Month.MARCH),
+                YearMonth.of(2021, Month.FEBRUARY)
         );
 
         // When
-        final Map<Year, List<Month>> monthsGroupedByYear = new DateFilter(startDate, endDate).getMonthsGroupedByYear();
+        final List<YearMonth> yearMonthList = new DateFilter(startDate, endDate).getYearMonthList();
 
         // Then
-        assertEquals(expectedMonthsGroupedByYear, monthsGroupedByYear);
+        assertEquals(expectedYearMonthList, yearMonthList);
     }
 
     @Test
@@ -68,15 +75,17 @@ class DateFilterTest {
         final LocalDate startDate = LocalDate.of(2020, 12, 1);
         final LocalDate endDate = LocalDate.of(2021, 3, 31);
 
-        final Map<Year, List<Month>> expectedMonthsGroupedByYear = Map.of(
-                Year.of(2020), List.of(Month.DECEMBER),
-                Year.of(2021), List.of(Month.JANUARY, Month.FEBRUARY, Month.MARCH)
+        final List<YearMonth> expectedYearMonthList = List.of(
+                YearMonth.of(2021, Month.MARCH),
+                YearMonth.of(2021, Month.FEBRUARY),
+                YearMonth.of(2021, Month.JANUARY),
+                YearMonth.of(2020, Month.DECEMBER)
         );
 
         // When
-        final Map<Year, List<Month>> monthsGroupedByYear = new DateFilter(startDate, endDate).getMonthsGroupedByYear();
+        final List<YearMonth> yearMonthList = new DateFilter(startDate, endDate).getYearMonthList();
 
         // Then
-        assertEquals(expectedMonthsGroupedByYear, monthsGroupedByYear);
+        assertEquals(expectedYearMonthList, yearMonthList);
     }
 }

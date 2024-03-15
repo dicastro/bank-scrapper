@@ -4,9 +4,9 @@ import com.diegocastroviadero.bankscrapper.utils.Utils;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.ZonedDateTime;
 
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
 public enum SyncType {
@@ -15,19 +15,15 @@ public enum SyncType {
 
     private final int monthDiff;
 
-    public LocalDate getStartDate() {
-        final ZonedDateTime today = Utils.now();
+    public LocalDate getStartDate(Instant now) {
+        final YearMonth nowYM = Utils.getYearMonth(now);
 
-        final YearMonth now = YearMonth.from(today);
-
-        return now.minusMonths(monthDiff).atDay(1);
+        return nowYM.minusMonths(monthDiff).atDay(1);
     }
 
-    public LocalDate getEndDate() {
-        final ZonedDateTime today = Utils.now();
+    public LocalDate getEndDate(Instant now) {
+        final YearMonth nowYM = Utils.getYearMonth(now);
 
-        final YearMonth now = YearMonth.from(today);
-
-        return now.minusMonths(monthDiff).atEndOfMonth();
+        return nowYM.minusMonths(1).atEndOfMonth();
     }
 }

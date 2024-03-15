@@ -27,8 +27,9 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.time.Duration;
+import java.time.*;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -76,38 +77,40 @@ public class InBankScrapperService implements BankScrapperService {
     }
 
     @Override
-    public void scrap(final User user, final BankCredential bankCredential, final SyncType syncType, final Boolean whatIfMode) {
+    public void scrap(final User user, final BankCredential bankCredential, final SyncType syncType, final Instant now, final Boolean whatIfMode) {
         initMappings(user);
 
-        final DateFilter dateFilter = ScrapperUtils.newDateFilterFrom(syncType);
+        final DateFilter dateFilter = ScrapperUtils.newDateFilterFrom(syncType, now);
 
-        log.info("Scrapping data from {} from {} to {} ...", getBank().getDescription(), dateFilter.getFrom(), dateFilter.getTo());
+        dateFilter.getYearMonthList().forEach(yearMonth -> {
+            log.info("Scrapping {} data from {} ...", getBank().getDescription(), yearMonth);
 
-        if (whatIfMode) {
-            log.info("WhatIf mode was activated: scrapping is not done");
-        } else {
-            RemoteWebDriver driver = null;
+            if (whatIfMode) {
+                log.info("WhatIf mode was activated: scrapping is not done");
+            } else {
+                RemoteWebDriver driver = null;
 
-            try {
-                driver = driverProvider.getDriver();
+                try {
+                    driver = driverProvider.getDriver();
 
-                login(driver, bankCredential.castTo(InBankCredential.class));
+                    login(driver, bankCredential.castTo(InBankCredential.class));
 
-                final List<Account> accounts = getUserAccounts(driver);
+                    final List<Account> accounts = getUserAccounts(driver);
 
-                for (final Account account : accounts) {
-                    log.debug("Downloading movements of account: {}", account.getNumber());
+                    for (final Account account : accounts) {
+                        log.debug("Downloading movements of account: {}", account.getNumber());
 
-                    getAccountMovements(driver, account, dateFilter);
-                }
-            } catch (Exception e) {
-                log.error("Error while scrapping data from {}", getBank().getDescription(), e);
-            } finally {
-                if (driver != null) {
-                    driver.quit();
+                        getAccountMovements(driver, account, yearMonth);
+                    }
+                } catch (Exception e) {
+                    log.error("Error while scrapping data from {}", getBank().getDescription(), e);
+                } finally {
+                    if (driver != null) {
+                        driver.quit();
+                    }
                 }
             }
-        }
+        });
     }
 
     private void initMappings(final User user) {
@@ -363,7 +366,7 @@ public class InBankScrapperService implements BankScrapperService {
             .trim()
             .replaceAll("\\*", "");
 
-    private void getAccountMovements(final RemoteWebDriver driver, final Account account, final DateFilter dateFilter) {
+    private void getAccountMovements(final RemoteWebDriver driver, final Account account, final YearMonth yearMonth) {
         WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
 
         // FIXME: there is an issue and this code runs before the element is clickable (the wait before this method is not working properly)
@@ -381,7 +384,11 @@ public class InBankScrapperService implements BankScrapperService {
         String dateValue = wait.until(visibilityOfElementLocated(By.cssSelector("span.date-navigator-label"))).getText();
 
         // FIXME: month should not be hardcoded, it should be extracted from dateFilter
-        while (!StringUtils.equals("Febrero 2024", dateValue)) {
+        DateTimeFormatter fmt = new DateTimeFormatterBuilder()
+                .appendPattern("MMMM yyyy")
+                .toFormatter(new Locale("es", "ES"));
+
+        while (!StringUtils.equals(StringUtils.capitalize(fmt.format(yearMonth)), dateValue)) {
             wait.until(elementToBeClickable(By.cssSelector("a.navigate-back"))).click();
 
             dateValue = wait.until(visibilityOfElementLocated(By.cssSelector("span.date-navigator-label"))).getText();
@@ -408,7 +415,7 @@ public class InBankScrapperService implements BankScrapperService {
                         .findFirst()
                         .map(Map.Entry::getValue)
                         .orElse("NOTFOUND"),
-                dateFilter.getTo().format(DateTimeFormatter.ofPattern("yyyyMM")));
+                yearMonth.atEndOfMonth().format(DateTimeFormatter.ofPattern("yyyyMM")));
 
         log.debug("Downloaded file! Renaming from {} to {}", downloadedFile.getName(), renamedFile);
 

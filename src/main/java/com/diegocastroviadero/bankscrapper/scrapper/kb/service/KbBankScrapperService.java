@@ -6,8 +6,8 @@ import com.diegocastroviadero.bankscrapper.model.SyncType;
 import com.diegocastroviadero.bankscrapper.model.User;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.Account;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankCredential;
-import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankScrapperService;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.DateFilter;
+import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankScrapperService;
 import com.diegocastroviadero.bankscrapper.scrapper.common.service.DriverProvider;
 import com.diegocastroviadero.bankscrapper.scrapper.common.utils.ScrapperUtils;
 import com.diegocastroviadero.bankscrapper.scrapper.kb.console.KbBankCredential;
@@ -17,12 +17,7 @@ import com.diegocastroviadero.bankscrapper.scrapper.kb.keyboard.UnparseableKeybo
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.openqa.selenium.By;
-import org.openqa.selenium.Dimension;
-import org.openqa.selenium.OutputType;
-import org.openqa.selenium.Point;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.remote.RemoteWebDriver;
 import org.openqa.selenium.support.ui.FluentWait;
@@ -37,6 +32,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Iterator;
 import java.util.List;
@@ -45,12 +42,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static com.diegocastroviadero.bankscrapper.utils.Utils.*;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 import static java.time.Duration.ofMillis;
 import static java.time.Duration.ofSeconds;
-import static org.openqa.selenium.support.ui.ExpectedConditions.elementToBeClickable;
-import static org.openqa.selenium.support.ui.ExpectedConditions.numberOfElementsToBeMoreThan;
-import static org.openqa.selenium.support.ui.ExpectedConditions.presenceOfElementLocated;
+import static org.openqa.selenium.support.ui.ExpectedConditions.*;
 
 @Slf4j
 @Service
@@ -77,52 +73,57 @@ public class KbBankScrapperService implements BankScrapperService {
     }
 
     @Override
-    public void scrap(final User user, final BankCredential bankCredential, final SyncType syncType, final Boolean whatIfMode) {
+    public void scrap(final User user, final BankCredential bankCredential, final SyncType syncType, final Instant now, final Boolean whatIfMode) {
         initMappings(user);
 
-        final DateFilter dateFilter = ScrapperUtils.newDateFilterFrom(syncType);
+        final DateFilter dateFilter = ScrapperUtils.newDateFilterFrom(syncType, now);
 
-        log.info("Scrapping data from {} from {} to {} ...", getBank().getDescription(), dateFilter.getFrom(), dateFilter.getTo());
+        dateFilter.getYearMonthList().forEach(yearMonth -> {
+            final LocalDate from = yearMonth.atDay(1);
+            final LocalDate to = yearMonth.atEndOfMonth();
 
-        if (whatIfMode) {
-            log.info("WhatIf mode was activated: scrapping is not done");
-        } else {
-            RemoteWebDriver driver = null;
+            log.info("Scrapping {} data from {} to {} ...", getBank().getDescription(), from, to);
 
-            try {
-                driver = driverProvider.getDriver();
+            if (whatIfMode) {
+                log.info("WhatIf mode was activated: scrapping is not done");
+            } else {
+                RemoteWebDriver driver = null;
 
-                login(driver, bankCredential.castTo(KbBankCredential.class));
+                try {
+                    driver = driverProvider.getDriver();
 
-                final boolean switchedToTab = swithToTab(driver);
+                    login(driver, bankCredential.castTo(KbBankCredential.class));
 
-                if (switchedToTab) {
-                    final List<Account> accounts = getUserAccounts(driver);
+                    final boolean switchedToTab = swithToTab(driver);
 
-                    for (final Account account : accounts) {
-                        log.debug("Downloading movements of account: {}", account.getNumber());
+                    if (switchedToTab) {
+                        final List<Account> accounts = getUserAccounts(driver);
 
-                        getAccountMovements(driver, account, dateFilter);
+                        for (final Account account : accounts) {
+                            log.debug("Downloading movements of account: {}", account.getNumber());
+
+                            getAccountMovements(driver, account, from, to);
+                        }
+
+                        final List<Account> creditCards = getUserCreditCards(driver);
+
+                        for (final Account creditCard : creditCards) {
+                            log.debug("Downloading movements of credit card: {}", creditCard.getNumber());
+
+                            getAccountMovements(driver, creditCard, from, to);
+                        }
+
+                        waitMillis(FIVE_SECONDS);
                     }
-
-                    final List<Account> creditCards = getUserCreditCards(driver);
-
-                    for (final Account creditCard : creditCards) {
-                        log.debug("Downloading movements of credit card: {}", creditCard.getNumber());
-
-                        getAccountMovements(driver, creditCard, dateFilter);
+                } catch (Exception e) {
+                    log.error("Error while scrapping data from {}", getBank().getDescription(), e);
+                } finally {
+                    if (driver != null) {
+                        driver.quit();
                     }
-
-                    waitMillis(FIVE_SECONDS);
-                }
-            } catch (Exception e) {
-                log.error("Error while scrapping data from {}", getBank().getDescription(), e);
-            } finally {
-                if (driver != null) {
-                    driver.quit();
                 }
             }
-        }
+        });
     }
 
     private void initMappings(final User user) {
@@ -227,7 +228,7 @@ public class KbBankScrapperService implements BankScrapperService {
                 .collect(Collectors.toList());
     }
 
-    private void getAccountMovements(final RemoteWebDriver driver, final Account account, final DateFilter dateFilter) {
+    private void getAccountMovements(final RemoteWebDriver driver, final Account account, final LocalDate from, final LocalDate to) {
         goToStart(driver);
 
         final WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
@@ -244,22 +245,22 @@ public class KbBankScrapperService implements BankScrapperService {
         boolean allFilterCriteriaFieldsHaveValue;
 
         WebElement dateField = wait.until(presenceOfElementLocated(By.xpath("//input[@id='formCriterios:calendarioDesde_cmb_dias']")));
-        allFilterCriteriaFieldsHaveValue = ensureFieldHasValue(driver, dateField, "formCriterios:calendarioDesde_cmb_dias", dateFilter.getFromD());
+        allFilterCriteriaFieldsHaveValue = ensureFieldHasValue(driver, dateField, "formCriterios:calendarioDesde_cmb_dias", getDayOfMonthAsString(from));
 
         dateField = driver.findElement(By.xpath("//input[@id='formCriterios:calendarioDesde_cmb_mes']"));
-        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioDesde_cmb_mes", dateFilter.getFromM());
+        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioDesde_cmb_mes", getMonthAsString(from));
 
         dateField = driver.findElement(By.xpath("//input[@id='formCriterios:calendarioDesde_cmb_anyo']"));
-        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioDesde_cmb_anyo", dateFilter.getFromY());
+        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioDesde_cmb_anyo", getYearAsString(from));
 
         dateField = driver.findElement(By.xpath("//input[@id='formCriterios:calendarioHasta_cmb_dias']"));
-        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioHasta_cmb_dias", dateFilter.getToD());
+        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioHasta_cmb_dias", getDayOfMonthAsString(to));
 
         dateField = driver.findElement(By.xpath("//input[@id='formCriterios:calendarioHasta_cmb_mes']"));
-        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioHasta_cmb_mes", dateFilter.getToM());
+        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioHasta_cmb_mes", getMonthAsString(to));
 
         dateField = driver.findElement(By.xpath("//input[@id='formCriterios:calendarioHasta_cmb_anyo']"));
-        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioHasta_cmb_anyo", dateFilter.getToY());
+        allFilterCriteriaFieldsHaveValue &= ensureFieldHasValue(driver, dateField, "formCriterios:calendarioHasta_cmb_anyo", getYearAsString(to));
 
         if (!allFilterCriteriaFieldsHaveValue) {
             throw new RuntimeException("Error while setting values of fields to filter account movements by date");
@@ -274,7 +275,7 @@ public class KbBankScrapperService implements BankScrapperService {
             return;
         }
 
-        log.debug("Getting account movements with date filter {} ...", dateFilter);
+        log.debug("Getting account movements with from {} to {} ...", from, to);
 
         // TODO: sometimes table is not shown because of a page error, in this case movements recovery should be restarted
         wait.until(presenceOfElementLocated(By.xpath("//table[@id='formListado:dataContent']")));
@@ -300,7 +301,7 @@ public class KbBankScrapperService implements BankScrapperService {
                         .findFirst()
                         .map(Map.Entry::getValue)
                         .orElse("NOTFOUND"),
-                dateFilter.getTo().format(DateTimeFormatter.ofPattern("yyyyMM")));
+                to.format(DateTimeFormatter.ofPattern("yyyyMM")));
 
         log.debug("Downloaded file! Renaming from movimientos.xls to {}", renamedFile);
 

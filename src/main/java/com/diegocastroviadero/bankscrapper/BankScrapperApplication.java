@@ -7,22 +7,23 @@ import com.diegocastroviadero.bankscrapper.model.User;
 import com.diegocastroviadero.bankscrapper.scrapper.common.model.BankCredential;
 import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankCredentialReaderProvider;
 import com.diegocastroviadero.bankscrapper.scrapper.common.service.BankScrapperServiceProvider;
+import com.diegocastroviadero.bankscrapper.utils.Utils;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.DefaultParser;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.*;
 import org.apache.commons.lang3.EnumUtils;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static com.diegocastroviadero.bankscrapper.utils.Utils.UTC;
 
 @AllArgsConstructor
 @Slf4j
@@ -32,6 +33,8 @@ public class BankScrapperApplication implements CommandLineRunner {
     private static final String BANK_OPTION = "b";
     private static final String SYNC_TYPE_OPTION = "t";
     private static final String WHATIF_MODE_OPTION = "w";
+
+    private final Clock clock = Clock.system(UTC);
 
     private final ScrappingProperties properties;
     private final BankScrapperServiceProvider bankScrapperServiceProvider;
@@ -129,13 +132,15 @@ public class BankScrapperApplication implements CommandLineRunner {
             banksToProcess = properties.getUserBanks().get(user);
         }
 
+        Instant now = clock.instant();
+
         for (Bank currentBank : banksToProcess) {
             bankCredentialReaderProvider.getBankCredentialReader(currentBank)
                     .ifPresent(bankCredentialReader -> {
                         final BankCredential bankCredential = bankCredentialReader.readBankCredentials();
 
                         bankScrapperServiceProvider.getBankScrapperService(currentBank)
-                                .ifPresent(bankScrapperService -> bankScrapperService.scrap(user, bankCredential, syncType, whatIfMode));
+                                .ifPresent(bankScrapperService -> bankScrapperService.scrap(user, bankCredential, syncType, now, whatIfMode));
                     });
         }
 
