@@ -369,6 +369,9 @@ public class InBankScrapperService implements BankScrapperService {
     private void getAccountMovements(final RemoteWebDriver driver, final Account account, final YearMonth yearMonth) {
         WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
 
+        log.debug("Waiting 30s to load movements");
+        waitMillis(30000);
+
         // FIXME: there is an issue and this code runs before the element is clickable (the wait before this method is not working properly)
         // easy fix would be waiting 60s (but it could also fail)
         getShadowedElements(driver, PRODUCT_BOX_BY_CHAIN).stream()
