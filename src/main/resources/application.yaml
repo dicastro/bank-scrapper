@@ -32,3 +32,6 @@ bankscrapper:
         basePath: ${bankscrapper.basePath}/scrapping/banks/kb/keyboards
         cache: ${bankscrapper.banks.kb.keyboardCache.basePath}/cache
         tmp: ${bankscrapper.banks.kb.keyboardCache.basePath}/tmp
+
+  waits:
+    defaultWait: 10s

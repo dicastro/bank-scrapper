@@ -8,10 +8,13 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.net.URL;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.diegocastroviadero.bankscrapper.configuration.ScrappingProperties.SCRAPPING_CONFIG_PREFIX;
+import static java.time.Duration.ofSeconds;
 
 @Getter
 @Setter
@@ -25,6 +28,7 @@ public class ScrappingProperties {
     private Path downloadPath;
     private Map<User, List<Bank>> userBanks;
     private BanksProperties banks;
+    private Waits waits;
 
     public static enum BrowserType {
         CHROME, FIREFOX;
@@ -67,5 +71,16 @@ public class ScrappingProperties {
         private Path basePath;
         private Path cache;
         private Path tmp;
+    }
+
+    @Getter
+    @Setter
+    public static class Waits {
+        private Duration defaultWait = ofSeconds(10);
+        private Duration goToStartWait;
+
+        public Duration getGoToStartWaitOrDefault() {
+            return Optional.ofNullable(goToStartWait).orElse(defaultWait);
+        }
     }
 }

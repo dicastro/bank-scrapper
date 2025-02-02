@@ -55,8 +55,6 @@ public class KbBankScrapperService implements BankScrapperService {
     private final Integer ONE_SECOND = 1000;
     private final Integer FIVE_SECONDS = 5000;
 
-    private final Duration TEN_SECONDS_DUR = ofSeconds(10);
-
     private final ScrappingProperties properties;
     private final DriverProvider driverProvider;
     private final KeyboardManager keyboardManager;
@@ -151,7 +149,7 @@ public class KbBankScrapperService implements BankScrapperService {
 
         waitMillis(FIVE_SECONDS);
 
-        final WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
+        final WebDriverWait wait = new WebDriverWait(driver, properties.getWaits().getDefaultWait());
         final WebElement keyboardImg = wait.until(presenceOfElementLocated(By.id("tecladoImg")));
 
         final Point keyboardImgLocation = keyboardImg.getLocation();
@@ -193,7 +191,7 @@ public class KbBankScrapperService implements BankScrapperService {
     }
 
     private void goToStart(final RemoteWebDriver driver) {
-        final WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
+        final WebDriverWait wait = new WebDriverWait(driver, properties.getWaits().getGoToStartWaitOrDefault());
         wait.until(elementToBeClickable(By.xpath(("//div[@id = 'formMenuSuperior:PanelSuperior']//a[text() = 'Resumen']"))))
                 .click();
     }
@@ -202,7 +200,7 @@ public class KbBankScrapperService implements BankScrapperService {
     private List<Account> getUserAccounts(final RemoteWebDriver driver) {
         goToStart(driver);
 
-        final WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
+        final WebDriverWait wait = new WebDriverWait(driver, properties.getWaits().getDefaultWait());
         wait.until(numberOfElementsToBeMoreThan(By.xpath("//div[contains(@class, 'posiciones_tituloSeccion')]/span[text() = 'Cuentas']/../..//tr[contains(@class, 'posicicones_tablaListaContratosRow')]"), 0));
 
         return driver.findElements(By.xpath("//div[contains(@class, 'posiciones_tituloSeccion')]/span[text() = 'Cuentas']/../..//tr[contains(@class, 'posicicones_tablaListaContratosRow')]/td[contains(@class, 'posiciones_columna1Posicion')]")).stream()
@@ -217,7 +215,7 @@ public class KbBankScrapperService implements BankScrapperService {
     private List<Account> getUserCreditCards(final RemoteWebDriver driver) {
         goToStart(driver);
 
-        final WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
+        final WebDriverWait wait = new WebDriverWait(driver, properties.getWaits().getDefaultWait());
         wait.until(numberOfElementsToBeMoreThan(By.xpath("//div[contains(@class, 'posiciones_tituloSeccion')]/span[text() = 'Tarjetas']/../..//tr[contains(@class, 'posicicones_tablaListaContratosRow')]"), 0));
 
         return driver.findElements(By.xpath("//div[contains(@class, 'posiciones_tituloSeccion')]/span[text() = 'Tarjetas']/../..//tr[contains(@class, 'posicicones_tablaListaContratosRow')]/td[contains(@class, 'posiciones_columna1Posicion')]")).stream()
@@ -231,7 +229,7 @@ public class KbBankScrapperService implements BankScrapperService {
     private void getAccountMovements(final RemoteWebDriver driver, final Account account, final LocalDate from, final LocalDate to) {
         goToStart(driver);
 
-        final WebDriverWait wait = new WebDriverWait(driver, TEN_SECONDS_DUR);
+        final WebDriverWait wait = new WebDriverWait(driver, properties.getWaits().getDefaultWait());
         wait.until(elementToBeClickable(By.xpath(String.format("//span[@class='iceOutTxt' and text()='%s']/../..//span[text()='Movimientos']/..", account.getRawNumber()))))
                 .click();
 
